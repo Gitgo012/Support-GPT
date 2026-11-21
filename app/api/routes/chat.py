@@ -44,6 +44,8 @@ async def health_check():
     return {
         "status": "healthy",
         "model_loaded": chat_service.assistant is not None,
+        "device": chat_service.device,
+        "adapter_source": chat_service.adapter_source,
     }
 
 
@@ -116,8 +118,8 @@ async def chat(request: ChatRequest):
 
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
-    except Exception:
-        logger.exception("Support chat response failed.")
+    except Exception as exc:
+        logger.error("Support chat response failed (%s).", type(exc).__name__)
         raise HTTPException(
             status_code=500,
             detail="Something went wrong while generating the response.",

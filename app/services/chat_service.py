@@ -9,6 +9,8 @@ class ChatService:
         self.assistant = None
         self.generation_lock = threading.Lock()
         self.sessions = {}
+        self.device = "cpu"
+        self.adapter_source = "demo"
 
         self.order_id_pattern = re.compile(
             r"\b(?:order\s+with\s+id|order\s*(?:id|number|#))"
@@ -21,11 +23,11 @@ class ChatService:
     def load_model(self):
         """Load SupportGPT once when the API starts."""
         if self.assistant is None:
-            print("Initializing SupportGPT...")
             from src.support_gpt.inference.model import SupportGPT
 
             self.assistant = SupportGPT()
-            print("SupportGPT initialization complete.")
+            self.device = str(self.assistant.device)
+            self.adapter_source = self.assistant.adapter_source
 
     def generate_response(
         self,

@@ -225,6 +225,97 @@ contains no sensitive customer data, and ownership checks are for safe
 simulation rather than a security boundary. Refunds, cancellations, invoices,
 orders, delivery updates, and support tickets are simulated records only.
 
+## AWS EC2 deployment
+
+The Docker deployment runs the FastAPI storefront and CPU-only SupportGPT
+model on one x86_64 Ubuntu EC2 instance, with Caddy handling HTTPS. The model
+loads once at startup. The Hugging Face base model is cached under `/data`;
+the LoRA adapter is downloaded from `SUPPORTGPT_ADAPTER_REPO` (or loaded from
+`SUPPORTGPT_ADAPTER_PATH`, which takes priority). If model initialization
+fails, the web app stays available in demo mode. CPU inference can be slow,
+and 4 GB RAM is tight for Python, PyTorch, and the float32 model; monitor
+memory and consider an 8 GB instance if startup is killed or inference swaps.
+
+1. Launch an x86_64 Ubuntu EC2 instance. Attach persistent EBS storage with
+   enough room for the Docker image, base model cache, adapter, and SQLite DB.
+2. In the EC2 security group, allow SSH (`22`) only from your IP and HTTP/HTTPS
+   (`80`, `443`) from the intended audience. Point your domain's DNS `A` record
+   at the instance's stable public/Elastic IP; Caddy needs public access to
+   ports 80 and 443 to provision certificates.
+3. Install Docker and Compose, then clone the repository:
+
+   ```bash
+   sudo apt update
+   sudo apt install -y git docker.io docker-compose-v2
+   sudo systemctl enable --now docker
+   git clone <your-github-repository-url>
+   cd Support-GPT
+   ```
+
+4. Create the private runtime environment file:
+
+   ```bash
+   cp .env.example .env
+   nano .env
+   ```
+
+   Set `DOMAIN` to the DNS name pointed at this EC2 instance. To run the
+   fine-tuned model, set `SUPPORTGPT_LOAD_MODEL=1` and
+   `SUPPORTGPT_ADAPTER_REPO=your-huggingface-user/your-adapter-repo`.
+   Set `HF_TOKEN` to a read token if the adapter repository is private; public
+   adapters do not require a token. Leave `SUPPORTGPT_ADAPTER_PATH` empty
+   unless the adapter has been placed on the mounted `/data` volume. Keep `.env`
+   private and never commit it.
+5. Build and start both containers:
+
+   ```bash
+   sudo docker compose up --build -d
+   sudo docker compose logs -f app caddy
+   ```
+
+   The app listens only on the Docker network at port 8000. Caddy is the only
+   service publishing ports 80 and 443. The database defaults to
+   `/data/supportgpt.sqlite3`, and `HF_HOME` is `/data/hf-cache`; both survive
+   container restarts through the Compose volume.
+6. Confirm `https://your-domain.example/api/health` reports
+   `"model_loaded": true`, the expected device, and adapter source. If model
+   download/loading fails, inspect `sudo docker compose logs app`; health
+   remains available and chat uses demo responses. Do not send an HF token in
+   a browser request or expose port 8000 publicly.
+
+The adapter repository must contain the PEFT adapter files produced by the
+project's training workflow. The `models/` folder is intentionally excluded
+from Git and the Docker build context, so the adapter must be available from
+Hugging Face or be placed on `/data` separately. The production image installs
+the Linux CPU PyTorch wheel from the lockfile; it does not install CUDA
+libraries. The application rate-limits chat to 10 requests per IP per minute.
+
+### Files added or changed for EC2/Docker deployment
+
+- [Dockerfile](Dockerfile): x86_64 Python 3.12 image, CPU PyTorch extra,
+  non-root app user, and Uvicorn startup.
+- [docker-compose.yml](docker-compose.yml): persistent app data volume and
+  Caddy reverse proxy.
+- [Caddyfile](Caddyfile): HTTPS reverse proxy using the `DOMAIN` variable.
+- [.dockerignore](.dockerignore): keeps local environments, secrets, data,
+  model weights, reports, and logs out of Docker build context.
+- [.env.example](.env.example): deployment variables and no real secrets.
+- [pyproject.toml](pyproject.toml): CPU/Linux PyTorch source, test extra,
+  pytest configuration.
+- [uv.lock](uv.lock): frozen dependencies including CPU and test wheels.
+- [app/main.py](app/main.py): lifespan model startup, proxy rate limiting,
+  database initialization, and FastAPI app setup.
+- [app/api/routes/chat.py](app/api/routes/chat.py): health metadata and chat API.
+- [app/services/chat_service.py](app/services/chat_service.py): one-time model
+  state and adapter/device metadata.
+- [app/services/rate_limiter.py](app/services/rate_limiter.py): in-memory chat
+  throttling.
+- [src/support_gpt/inference/model.py](src/support_gpt/inference/model.py):
+  float32 CPU/BF16 GPU model loading and configurable adapter source.
+- [tests/test_deployment_smoke.py](tests/test_deployment_smoke.py): `/`,
+  `/api/health`, and simulated order chat checks.
+- [README.md](README.md): this AWS deployment guide.
+
 ## Project status
 
 **In development — NovaMart demo storefront and SQLite-backed support flow.**
