@@ -1,0 +1,41 @@
+[project]
+name = "support-gpt"
+version = "0.1.0"
+description = "NovaMart demo storefront with a SQLite-backed SupportGPT assistant"
+readme = "README.md"
+authors = [
+    { name = "Gitgo012", email = "yashkuletha05@gmail.com" }
+]
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "fastapi>=0.165.0",
+    "jinja2>=3.1.6",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.optional-dependencies]
+ml = [
+    "accelerate",
+    "datasets",
+    "peft>=0.21.3",
+    "safetensors",
+    "tensorboard>=2.21.0",
+    "torch==2.11.0",
+    "transformers>=5.23.0",
+    "trl",
+]
+
+[project.scripts]
+support-gpt = "support_gpt:main"
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14.0"]
+build-backend = "uv_build"

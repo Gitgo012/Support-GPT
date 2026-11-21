@@ -1,0 +1,230 @@
+# SupportGPT
+
+A fine-tuned customer support AI assistant built using **Qwen2.5-0.5B-Instruct**, **BF16 LoRA**, and **Hugging Face Transformers**. The project focuses on training a lightweight language model to answer common customer support questions and deploying it through a web-based chat application.
+
+## Project goals
+
+- Build a customer support assistant using an open-source pretrained language model.
+- Fine-tune the model on customer support instruction-response data.
+- Fine-tune the base model with LoRA in BF16.
+- Evaluate the fine-tuned model against the original base model.
+- Build a web interface for interacting with the model.
+- Deploy the application for public access.
+
+## Technology stack
+
+| Component | Technology |
+|---|---|
+| Base model | Qwen2.5-0.5B-Instruct |
+| Deep learning | PyTorch |
+| Model framework | Hugging Face Transformers |
+| Dataset processing | Hugging Face Datasets |
+| Fine-tuning | PEFT, TRL |
+| Training precision | BF16 |
+| Training method | LoRA (PEFT) |
+| Backend | FastAPI |
+| Frontend | HTML, CSS, JavaScript |
+| Environment and packages | Python 3.12, uv |
+
+## Dataset
+
+**Bitext Customer Support LLM Chatbot Training Dataset**
+
+https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-training-dataset
+
+The dataset contains customer questions, expected responses, categories and intents covering common customer support scenarios.
+
+## Planned workflow
+
+1. Download and inspect the dataset.
+2. Clean, format, deduplicate and split the data.
+3. Load Qwen2.5-0.5B-Instruct.
+4. Load the base model in BF16.
+5. Attach LoRA adapters and fine-tune using TRL.
+6. Evaluate the base model against the fine-tuned model.
+7. Build a FastAPI inference backend.
+8. Create a customer support chat interface.
+9. Deploy the application.
+
+## Hardware
+
+Development hardware: NVIDIA GeForce RTX 5060 Laptop GPU with 8 GB VRAM.
+
+The model will initially be trained and tested locally. Deployment will use a suitable cloud hosting environment.
+
+## Preparing policy-clean training data
+
+Before training a candidate adapter, prepare a separate cleaned dataset:
+
+```powershell
+uv run python -m support_gpt.data.prepare_dataset
+```
+
+The preparation step reuses the inference support policy, rewrites only
+recognized generic contact/resource placeholders into general official-channel
+guidance, and drops examples with customer-specific placeholders, unsupported
+action promises, first-party company claims, unqualified account or website
+features, and hard-coded policy or contact details. These conservative checks
+reduce known risks but do not replace semantic review. The preparation step
+also excludes templated user prompts, keeps identical user prompts in the same
+split, checks for overlap with the fixed evaluation cases, and validates every
+target before training. The validation split is stratified by category while
+keeping duplicate normalized user prompts together. The training split uses
+deterministic square-root oversampling for smaller categories; all original
+training rows remain, while added repetitions are recorded in the quality
+report. This reduces category skew without forcing every category to repeat
+up to the largest category's count. The supplemental examples in
+`data/curated/support_supplemental.jsonl` are training-only.
+
+Outputs go to `data/processed/support_gpt_safe/`; the existing processed files
+are left unchanged. A row-count and category audit is written to
+`data/processed/support_gpt_safe/data_quality_report.json`. The next training
+run writes to `models/adapters/support-gpt-lora-candidate/`, leaving the current
+`models/adapters/support-gpt-lora/final` adapter intact. Review the audit and
+candidate data before starting training.
+
+After review, start training explicitly with:
+
+```powershell
+uv run python -m support_gpt.training.train
+```
+
+## Model evaluation
+
+The fixed, hand-written evaluation cases are in
+`data/evaluation/support_gpt_eval.jsonl`. They are maintained separately from
+the Bitext training and validation files. Run the paired base-model/LoRA
+evaluation from the repository root with:
+
+```powershell
+uv run python -m support_gpt.evaluation.evaluate
+```
+
+The runner uses greedy generation with a fixed seed and token limit, evaluates
+each case against both model variants, and records the resolved model revision,
+software versions, run configuration, and SHA-256 hashes of the test set and
+adapter files. To pin the base model to a specific Hugging Face revision, pass
+its revision identifier:
+
+```powershell
+uv run python -m support_gpt.evaluation.evaluate --base-revision "commit-hash"
+```
+
+To evaluate a candidate adapter without replacing the current adapter, specify
+its directory:
+
+```powershell
+uv run python -m support_gpt.evaluation.evaluate --adapter-path "models/adapters/support-gpt-lora-candidate/final" --output-dir "reports/candidate"
+```
+
+The run writes `reports/evaluation_results.csv`,
+`reports/evaluation_report.json`, and `reports/evaluation_report.md`. The CSV
+includes response text, per-case latency and errors, and blank human-review
+columns. To enter human ratings and regenerate the summaries, fill those
+columns in the CSV and run:
+
+```powershell
+uv run python -m support_gpt.evaluation.compare_models
+```
+
+Human ratings use a 1–5 scale: 1 = poor, 3 = partially meets the criterion,
+and 5 = fully meets it. Rate relevance to the request, factual correctness
+against the case criteria, practical helpfulness, and compliance with the
+requested behavior separately. These ratings are not generated automatically;
+the reports keep them distinct from automated checks. Automated checks cover
+generation failures/empty responses, latency, reference-conditioned
+loss/perplexity where a reference answer is provided, unresolved placeholders,
+known patterns for unsupported action claims, and a narrow prompt-injection
+disclosure check. They are indicators, not a complete safety or answer-quality
+judgment. The FastAPI contract checks use controlled fake model responses and
+are reported separately; they test request validation, response validation,
+and session/order-ID retention, not model answer quality. ROUGE, BLEU, and
+exact match are not used as standalone measures of customer-support quality.
+The current fixed evaluation cases have already been inspected and should be
+treated as a development set; create a fresh, separate holdout before making
+final performance claims.
+
+## NovaMart demo application
+
+The FastAPI application is a fictional NovaMart storefront with a product
+catalogue, demo customer profiles, simulated orders and invoices, and an
+integrated SupportGPT experience. SQLite is initialized and seeded on startup.
+The sample account is `alex.morgan@example.com` (choose **Use the sample
+account** on the account page); it includes order `NM-20481`.
+
+The default app mode does not load model weights, so it starts quickly and can
+answer order questions from verified SQLite records. For general support it
+provides a short demo guidance response. To load the fine-tuned model on a
+machine that has the model files, required ML packages, and sufficient memory,
+install the ML dependencies with `uv sync --extra ml` and set
+`SUPPORTGPT_LOAD_MODEL=1`. The model is given selected, ownership-checked
+order context, and order status remains simulated.
+
+Run locally from the repository root:
+
+```powershell
+uv sync
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Open `http://127.0.0.1:8000`. Set `SUPPORTGPT_DATABASE_PATH` to choose another
+SQLite file. All product, customer, order, invoice, ticket, and customer-scoped
+conversation records are stored in that database. No real payment, refund,
+cancellation, shipping, or human-agent workflow is connected.
+
+### What to commit to GitHub
+
+The root `.gitignore` excludes local virtual environments, secrets (while
+keeping `.env.example`), SQLite files, downloaded/raw and generated/processed
+datasets, model weights/checkpoints, and training logs. The small curated and
+evaluation datasets, application source, tests, configuration, lockfile, and
+evaluation reports remain eligible for commit. Fine-tuned weights are not in
+the GitHub repository; obtain or train the adapter separately before enabling
+`SUPPORTGPT_LOAD_MODEL=1`. The default demo mode does not need those weights.
+
+### Deployment choices
+
+| Option | Suitable for | Notes |
+|---|---|---|
+| Render Web Service + persistent disk | Simplest single-instance demo | Mount a persistent disk and point `SUPPORTGPT_DATABASE_PATH` at it. SQLite must not live on the ephemeral app filesystem. |
+| Railway service + volume | Quick demo and preview deployments | Attach a volume at the database path and run a single app replica while using SQLite. |
+| Fly.io app + volume | More control over the app VM | Volumes are local to a machine/region; keep one writer and plan backups. |
+| VPS/container host + Docker volume | Full deployment control | Persist the SQLite file in a mounted volume and handle TLS, updates, monitoring, and backups. |
+| Managed PostgreSQL (Neon, Supabase, Render, Railway) | Multiple replicas or production growth | Replace the SQLite repository with PostgreSQL and use migrations before scaling horizontally. |
+
+For model inference, keep the web app and GPU inference service separate if the
+chosen app host has no GPU. A GPU VM or managed inference endpoint can host the
+fine-tuned model; alternatively, use a hosted LLM API behind the FastAPI
+backend. Store provider credentials as server-side environment secrets, never
+in browser JavaScript. The non-model demo mode is the least expensive option
+for an initial UI deployment.
+
+### Example: deploy on Render with SQLite
+
+1. Push the repository to a Git provider and create a **Web Service** from it.
+2. Select a Python runtime compatible with the project's Python requirement.
+3. Configure the build command as `pip install uv && uv sync --frozen`.
+4. Configure the start command as
+   `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+5. Add a persistent disk mounted at `/var/data`.
+6. Set `SUPPORTGPT_DATABASE_PATH=/var/data/supportgpt.sqlite3` and
+   `SUPPORTGPT_LOAD_MODEL=0` in the service environment.
+7. Deploy, then check `/api/health` and visit the service URL. Startup creates
+   the schema and sample records automatically.
+8. Back up the SQLite file on a schedule. Test restore procedures and avoid
+   running multiple replicas against the same SQLite file.
+9. To enable the fine-tuned model, provision sufficient memory (preferably a
+   GPU), change the build command to include `--extra ml`, make the model and adapter artifacts
+   available to the service, and set `SUPPORTGPT_LOAD_MODEL=1`. Check model
+   startup logs and `/api/health` before directing traffic to it.
+
+For any real customers, replace the email-only demo profile with proper
+authentication and authorization, add CSRF/rate-limit/privacy controls, and
+use a production database. Email entry here is not authentication: the demo
+contains no sensitive customer data, and ownership checks are for safe
+simulation rather than a security boundary. Refunds, cancellations, invoices,
+orders, delivery updates, and support tickets are simulated records only.
+
+## Project status
+
+**In development — NovaMart demo storefront and SQLite-backed support flow.**

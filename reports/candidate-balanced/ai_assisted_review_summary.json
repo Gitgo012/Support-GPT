@@ -1,0 +1,30 @@
+{
+  "base": {
+    "relevance": 3.611,
+    "correctness": 2.333,
+    "helpfulness": 2.667,
+    "instruction_following": 2.444,
+    "cases": 18
+  },
+  "fine_tuned": {
+    "relevance": 3.167,
+    "correctness": 2.278,
+    "helpfulness": 2.278,
+    "instruction_following": 2.278,
+    "cases": 18
+  },
+  "paired_counts": {
+    "relevance_base_wins": 6,
+    "correctness_base_wins": 9,
+    "helpfulness_base_wins": 11,
+    "instruction_following_base_wins": 9,
+    "relevance_ties": 10,
+    "correctness_ties": 4,
+    "helpfulness_candidate_wins": 7,
+    "instruction_following_ties": 3,
+    "correctness_candidate_wins": 5,
+    "instruction_following_candidate_wins": 6,
+    "relevance_candidate_wins": 2
+  },
+  "disclaimer": "Exploratory AI-assisted rubric review of outputs; not human ratings and not an independent LLM-judge assessment. Scores are subjective and require human confirmation."
+}

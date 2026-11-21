@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#f7f6f1">
+    <meta name="description" content="Shop thoughtfully made everyday goods and get real order help from NovaMart SupportGPT.">
+    <title>NovaMart — Good things, made useful</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="announcement"><span>THE NOVAMART NOTE</span> Thoughtful finds for the everyday. Free shipping on demo orders.</div>
+    <header class="site-header">
+        <a class="brand" href="/" aria-label="NovaMart home">
+            <span class="brand-mark" aria-hidden="true">n</span><span>nova<span class="brand-light">mart</span></span>
+        </a>
+        <nav class="main-nav" id="mainNav" aria-label="Main navigation">
+            <button class="nav-link active" data-view="store" type="button">Shop</button>
+            <button class="nav-link" data-view="account" type="button">My orders</button>
+            <button class="nav-link" data-view="support" type="button">Support</button>
+        </nav>
+        <div class="header-actions">
+            <button class="icon-button bag-button" id="bagButton" type="button" aria-label="Open shopping bag">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l1 13H4L5 8Z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/></svg>
+                <span>Bag</span><span class="bag-count" id="bagCount">0</span>
+            </button>
+            <button class="account-button" id="accountShortcut" type="button"><span class="account-avatar" id="accountAvatar">A</span><span id="accountLabel">Account</span></button>
+            <button class="menu-button" id="menuButton" type="button" aria-label="Open navigation">☰</button>
+        </div>
+    </header>
+
+    <main>
+        <section class="view active" id="storeView" aria-labelledby="heroTitle">
+            <div class="hero">
+                <div class="hero-copy">
+                    <p class="eyebrow"><span class="eyebrow-line"></span> A LITTLE MORE CONSIDERED</p>
+                    <h1 id="heroTitle">Good things,<br><em>made useful.</em></h1>
+                    <p class="hero-description">Everyday essentials with a softer footprint and a longer story. Made to be reached for, again and again.</p>
+                    <button class="button button-cream" id="exploreButton" type="button">Explore the collection <span aria-hidden="true">↘</span></button>
+                    <div class="hero-note"><span class="note-stars" aria-hidden="true">✳</span><span>Small-batch goods<br><strong>picked with purpose</strong></span></div>
+                </div>
+                <div class="hero-art" aria-label="A curated collection of NovaMart everyday goods">
+                    <div class="hero-sun"></div><div class="hero-sticker">MADE FOR<br>THE IN-BETWEEN</div>
+                    <div class="art-object art-bag"><span>✿</span><small>take the<br>long way</small></div>
+                    <div class="art-object art-mug"><span>☕</span></div>
+                    <div class="art-object art-bottle"><span>↟</span></div>
+                    <span class="art-leaf leaf-one">⌁</span><span class="art-leaf leaf-two">⌁</span>
+                    <div class="art-ground"></div>
+                    <p class="art-caption">THE EVERYDAY EDIT <span>— No. 04</span></p>
+                </div>
+            </div>
+
+            <section class="collection section-wrap" id="collection" aria-labelledby="collectionTitle">
+                <div class="section-topline"><span>THE GOOD STUFF</span><span>01 — 06</span></div>
+                <div class="collection-heading">
+                    <div><h2 id="collectionTitle">Find your <em>everyday.</em></h2><p>Useful things, chosen for the way you actually live.</p></div>
+                    <label class="search-box"><span class="sr-only">Search products</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="searchInput" type="search" placeholder="Find something good" autocomplete="off"></label>
+                </div>
+                <div class="category-row" id="categoryFilters" aria-label="Filter by category"></div>
+                <div class="product-grid" id="productGrid" aria-live="polite"></div>
+                <p class="empty-state" id="emptyProducts" hidden>No finds match that search. Try another word.</p>
+            </section>
+            <section class="promise-strip">
+                <div><span class="promise-icon">✳</span><span><strong>Thoughtfully picked</strong><small>Fewer things, better made.</small></span></div>
+                <div><span class="promise-icon">↗</span><span><strong>Clear, kind support</strong><small>Real answers, without the runaround.</small></span></div>
+                <div><span class="promise-icon">♡</span><span><strong>Made for the long run</strong><small>Everyday favorites, not throwaways.</small></span></div>
+            </section>
+        </section>
+
+        <section class="view account-view" id="accountView" aria-labelledby="accountTitle" hidden>
+            <div class="page-heading"><p class="eyebrow">YOUR LITTLE CORNER</p><h1 id="accountTitle">Good to see you<span class="heading-period">.</span></h1><p>Keep an eye on your orders and the details that matter.</p></div>
+            <div class="account-layout">
+                <section class="account-card profile-card" id="profileCard">
+                    <div class="card-kicker">YOUR ACCOUNT <span>DEMO MODE</span></div>
+                    <div id="profileContent"></div>
+                    <form id="accountForm" class="account-form">
+                        <label for="customerName">Your name</label><input id="customerName" name="name" maxlength="80" placeholder="e.g. Alex Morgan" required>
+                        <label for="customerEmail">Email address</label><input id="customerEmail" name="email" type="email" maxlength="254" placeholder="you@example.com" required>
+                        <button class="button button-dark" type="submit">Continue with email <span aria-hidden="true">→</span></button>
+                        <p class="form-note">This is a demo profile—no password or real payment info needed.</p>
+                        <button class="text-button" id="demoAccountButton" type="button">Use the sample account</button>
+                    </form>
+                </section>
+                <section class="account-card orders-card">
+                    <div class="card-heading"><div><div class="card-kicker">THE PAPER TRAIL</div><h2>Your orders</h2></div><span class="order-count" id="orderCount">0</span></div>
+                    <div id="ordersList" class="orders-list"><div class="empty-orders"><span>✳</span><p>Your next favorite is one good find away.</p><button class="text-button" data-view="store" type="button">Browse the collection →</button></div></div>
+                </section>
+            </div>
+        </section>
+
+        <section class="view support-view" id="supportView" aria-labelledby="supportTitle" hidden>
+            <div class="support-layout">
+                <aside class="support-side">
+                    <p class="eyebrow">HERE FOR THE SMALL STUFF, TOO</p><h1 id="supportTitle">Let's figure<br><em>it out.</em></h1>
+                    <p class="support-intro">A little help goes a long way. Ask SupportGPT about your order, a product, or what happens next.</p>
+                    <button class="button button-dark new-conversation" id="newConversation" type="button"><span>＋</span> New conversation</button>
+                    <div class="context-box">
+                        <label for="supportOrder">Talking about an order?</label>
+                        <select id="supportOrder"><option value="">Choose an order (optional)</option></select>
+                        <label for="supportProduct">Or ask about a product</label>
+                        <select id="supportProduct"><option value="">Choose a product (optional)</option></select>
+                        <p>Context is pulled from the NovaMart demo catalogue and order records.</p>
+                    </div>
+                    <div class="conversation-history"><div class="history-title">RECENT CONVERSATIONS</div><div id="conversationList"><p class="history-empty">Your chats will show up here.</p></div></div>
+                </aside>
+                <section class="chat-card" aria-label="SupportGPT conversation">
+                    <div class="chat-card-header"><div class="support-avatar">n<span>✳</span></div><div><strong>SupportGPT</strong><small><span class="live-dot"></span> NovaMart's helpful little assistant</small></div><span class="demo-label">DEMO SUPPORT</span></div>
+                    <div class="chat-messages" id="chatMessages" role="log" aria-live="polite" aria-relevant="additions text"></div>
+                    <div class="quick-prompts" id="quickPrompts">
+                        <button type="button" data-prompt="Where is my order?">Where's my order? <span>↗</span></button>
+                        <button type="button" data-prompt="How do I request a refund?">Refund help <span>↗</span></button>
+                        <button type="button" data-prompt="Can I cancel my order?">Cancel an order <span>↗</span></button>
+                    </div>
+                    <form class="chat-composer" id="chatForm">
+                        <label class="sr-only" for="messageInput">Message SupportGPT</label>
+                        <textarea id="messageInput" maxlength="2000" rows="1" placeholder="Tell us what’s on your mind..." required></textarea>
+                        <button type="submit" id="sendButton" aria-label="Send message"><span>↑</span></button>
+                    </form>
+                    <p class="chat-disclaimer">Demo statuses are simulated. No real refunds, cancellations, payments, or shipments happen here.</p>
+                    <details class="ticket-panel">
+                        <summary>Still need a person? Create a support ticket</summary>
+                        <form id="ticketForm">
+                            <label for="ticketSubject">What do you need help with?</label>
+                            <input id="ticketSubject" maxlength="120" placeholder="A short subject" required>
+                            <label for="ticketMessage">A few more details</label>
+                            <textarea id="ticketMessage" maxlength="2000" minlength="10" rows="3" placeholder="Tell our demo support team what happened..." required></textarea>
+                            <button class="button button-dark" type="submit">Create demo ticket →</button>
+                        </form>
+                    </details>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer"><a class="brand footer-brand" href="/"><span class="brand-mark">n</span><span>nova<span class="brand-light">mart</span></span></a><span>Good things, for all the in-between.</span><button type="button" data-view="support">Need a hand? Talk to us <span>↗</span></button></footer>
+
+    <div class="bag-overlay" id="bagOverlay" hidden>
+        <button class="overlay-scrim" id="closeBagScrim" type="button" aria-label="Close shopping bag"></button>
+        <aside class="bag-drawer" role="dialog" aria-modal="true" aria-labelledby="bagTitle">
+            <div class="drawer-header"><div><p class="eyebrow">A FEW GOOD THINGS</p><h2 id="bagTitle">Your bag <span id="drawerBagCount">(0)</span></h2></div><button class="close-button" id="closeBag" type="button" aria-label="Close bag">×</button></div>
+            <div class="bag-items" id="bagItems"></div>
+            <div class="bag-footer"><div class="bag-total"><span>Demo total</span><strong id="bagTotal">$0.00</strong></div><p>No payment is collected. Placing an order only creates a simulated order record.</p><button class="button button-dark" id="checkoutButton" type="button">Place demo order <span>→</span></button></div>
+        </aside>
+    </div>
+
+    <div class="toast-region" id="toastRegion" role="status" aria-live="polite" aria-atomic="true"></div>
+    <script src="/static/js/storefront.js" defer></script>
+</body>
+</html>
