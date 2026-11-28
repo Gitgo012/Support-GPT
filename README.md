@@ -313,60 +313,6 @@ fails, the web app stays available in demo mode. CPU inference can be slow,
 and 4 GB RAM is tight for Python, PyTorch, and the float32 model; monitor
 memory and consider an 8 GB instance if startup is killed or inference swaps.
 
-1. Launch an x86_64 Ubuntu EC2 instance. Attach persistent EBS storage with
-   enough room for the Docker image, base model cache, adapter, and SQLite DB.
-2. In the EC2 security group, allow SSH (`22`) only from your IP and HTTP/HTTPS
-   (`80`, `443`) from the intended audience. Point your domain's DNS `A` record
-   at the instance's stable public/Elastic IP; Caddy needs public access to
-   ports 80 and 443 to provision certificates.
-3. Install Docker and Compose, then clone the repository:
-
-   ```bash
-   sudo apt update
-   sudo apt install -y git docker.io docker-compose-v2
-   sudo systemctl enable --now docker
-   git clone <your-github-repository-url>
-   cd Support-GPT
-   ```
-
-4. Create the private runtime environment file:
-
-   ```bash
-   cp .env.example .env
-   nano .env
-   ```
-
-   Set `DOMAIN` to the DNS name pointed at this EC2 instance. To run the
-   fine-tuned model, set `SUPPORTGPT_LOAD_MODEL=1` and
-   `SUPPORTGPT_ADAPTER_REPO=your-huggingface-user/your-adapter-repo`.
-   Set `HF_TOKEN` to a read token if the adapter repository is private; public
-   adapters do not require a token. Leave `SUPPORTGPT_ADAPTER_PATH` empty
-   unless the adapter has been placed on the mounted `/data` volume. Keep `.env`
-   private and never commit it.
-5. Build and start both containers:
-
-   ```bash
-   sudo docker compose up --build -d
-   sudo docker compose logs -f app caddy
-   ```
-
-   The app listens only on the Docker network at port 8000. Caddy is the only
-   service publishing ports 80 and 443. The database defaults to
-   `/data/supportgpt.sqlite3`, and `HF_HOME` is `/data/hf-cache`; both survive
-   container restarts through the Compose volume.
-6. Confirm `https://your-domain.example/api/health` reports
-   `"model_loaded": true`, the expected device, and adapter source. If model
-   download/loading fails, inspect `sudo docker compose logs app`; health
-   remains available and chat uses demo responses. Do not send an HF token in
-   a browser request or expose port 8000 publicly.
-
-The adapter repository must contain the PEFT adapter files produced by the
-project's training workflow. The `models/` folder is intentionally excluded
-from Git and the Docker build context, so the adapter must be available from
-Hugging Face or be placed on `/data` separately. The production image installs
-the Linux CPU PyTorch wheel from the lockfile; it does not install CUDA
-libraries. The application rate-limits chat to 10 requests per IP per minute.
-
 ## GitHub Actions CI/CD for EC2
 
 The workflow in `.github/workflows/ci-cd.yml` runs the full test suite on pull
@@ -390,80 +336,6 @@ The Elastic IP remains associated during stop/start, but the site is
 unavailable while the instance is stopped. EBS storage and the allocated public
 IPv4/Elastic IP may still incur charges while stopped; check the current AWS
 pricing and billing dashboard.
-
-### One-time AWS and GitHub setup
-
-1. Attach an EC2 instance profile with `AmazonSSMManagedInstanceCore`. Ensure
-   the SSM Agent is installed and the instance appears **Online** in Systems
-   Manager. The instance needs outbound access to AWS SSM endpoints and GitHub.
-2. Create a dedicated IAM user for GitHub Actions. Do not use your AWS root
-   account or a personal administrator access key. Attach the least-privilege
-   policy below to the user. Replace `REGION`,
-   `ACCOUNT_ID`, and `INSTANCE_ID`. `Describe` and SSM invocation-read actions
-   require `"Resource": "*"`, while start/stop and send-command are scoped to
-   the instance and the AWS-managed shell document:
-
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Action": ["ec2:DescribeInstances", "ec2:DescribeInstanceStatus"],
-         "Resource": "*"
-       },
-       {
-         "Effect": "Allow",
-         "Action": ["ec2:StartInstances", "ec2:StopInstances"],
-         "Resource": "arn:aws:ec2:REGION:ACCOUNT_ID:instance/INSTANCE_ID"
-       },
-       {
-         "Effect": "Allow",
-         "Action": "ssm:SendCommand",
-         "Resource": [
-           "arn:aws:ssm:REGION::document/AWS-RunShellScript",
-           "arn:aws:ec2:REGION:ACCOUNT_ID:instance/INSTANCE_ID"
-         ]
-       },
-       {
-         "Effect": "Allow",
-         "Action": ["ssm:DescribeInstanceInformation", "ssm:GetCommandInvocation"],
-         "Resource": "*"
-       }
-     ]
-   }
-   ```
-
-3. Create an access key for the dedicated IAM user. In **GitHub repository →
-   Settings → Secrets and variables → Actions**, add these **Secrets**:
-
-   | Secret | Value |
-   |---|---|
-   | `AWS_ACCESS_KEY_ID` | The IAM user's access key ID |
-   | `AWS_SECRET_ACCESS_KEY` | The IAM user's secret access key |
-
-   Store the secret key only in GitHub Secrets; do not put it in the workflow,
-   `.env`, or repository. Rotate it by adding a replacement key to GitHub
-   Secrets, verifying a deployment, then deactivating and deleting the old key.
-4. In the same settings page, add these **Variables**:
-
-   | Variable | Value |
-   |---|---|
-   | `AWS_REGION` | The EC2 instance's AWS region, such as `us-east-1` |
-   | `EC2_INSTANCE_ID` | The target instance ID, such as `i-0123456789abcdef0` |
-
-   Keep the existing `.env` file and model credentials on EC2; the workflow
-   does not copy them from GitHub.
-5. Confirm the repository is cloned at `/home/ubuntu/Support-GPT`, the
-   `ubuntu` user can pull `main`, Docker Compose works with `sudo`, and the
-   server's `.env` has `SUPPORTGPT_LOAD_MODEL=1` plus valid adapter settings.
-   The workflow intentionally fails deployment if `/api/health` does not report
-   `model_loaded: true`. Change the repository path in the workflow if your
-   clone is elsewhere.
-
-Pull requests run tests only and never start EC2. Pushes to `main` deploy
-automatically. Since the workflow stops an instance it started, the application
-will be offline after that deployment until you start EC2 for a demo.
 
 ### Files added or changed for EC2/Docker deployment
 
@@ -492,7 +364,3 @@ will be offline after that deployment until you start EC2 for a demo.
 - [tests/test_deployment_smoke.py](tests/test_deployment_smoke.py): `/`,
   `/api/health`, and simulated order chat checks.
 - [README.md](README.md): this AWS deployment guide.
-
-## Project status
-
-**In development — NovaMart demo storefront and SQLite-backed support flow.**
