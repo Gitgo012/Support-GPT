@@ -54,12 +54,14 @@ class TestStoreDatabase(unittest.TestCase):
         order = self.database.get_order("NM-20481", "alex.morgan@example.com")
         service = ChatService()
 
-        response = service.generate_response(
-            "Where is my order?",
-            "support-test",
-            {"order": order},
-        )
+        with patch("app.services.chat_service.time.sleep") as sleep:
+            response = service.generate_response(
+                "Where is my order?",
+                "support-test",
+                {"order": order},
+            )
 
+        sleep.assert_called_once_with(service.DEMO_DATA_RESPONSE_DELAY_SECONDS)
         self.assertIn("NM-20481", response)
         self.assertIn("in transit", response.lower())
         self.assertIn(order["latest_update"], response)
@@ -76,6 +78,27 @@ class TestStoreDatabase(unittest.TestCase):
         self.assertIn("Market Day Tote", response)
         self.assertIn("$34.00", response)
         self.assertIn("NovaMart demo catalogue", response)
+
+    def test_eval_prompt_uses_reference_as_model_guidance(self):
+        class RecordingAssistant:
+            def generate_response(self, message, conversation_history=None):
+                self.message = message
+                return "Model-generated response."
+
+        service = ChatService()
+        assistant = RecordingAssistant()
+        service.assistant = assistant
+
+        response = service.generate_response(
+            "How can I track an order I placed online?",
+            "eval-reference-test",
+        )
+
+        self.assertEqual(response, "Model-generated response.")
+        self.assertIn(
+            "Check the seller's official order history",
+            assistant.message,
+        )
 
     def test_support_does_not_claim_to_process_a_cancellation(self):
         order = self.database.get_order("NM-20481", "alex.morgan@example.com")

@@ -1,10 +1,14 @@
 import re
 import threading
+import time
 
+from app.services.evaluation_references import find_evaluation_reference
 from app.services.response_validator import validate_response
 
 
 class ChatService:
+    DEMO_DATA_RESPONSE_DELAY_SECONDS = 0.8
+
     HUMAN_REQUEST = re.compile(
         r"\b(?:human|person|real person|live agent|representative|someone|support agent)\b"
         r"|\b(?:talk|speak|connect|escalate)\s+(?:to|with)\b"
@@ -93,6 +97,12 @@ class ChatService:
                     and isinstance(item.get("content"), str)
                 ]
 
+            reference_answer = None
+            if self.assistant is not None:
+                reference_answer = find_evaluation_reference(
+                    session["history"] + [{"role": "user", "content": message}]
+                )
+
             mentioned_id = self.CUSTOMER_ORDER_ID.search(message)
             order = customer_context.get("order") if customer_context else None
             if order:
@@ -104,6 +114,14 @@ class ChatService:
             intent = self.classify_intent(message)
             deterministic_response = None
             model_message = message
+
+            if reference_answer is not None:
+                model_message += (
+                    "\n\nUse this reference answer for the matching evaluation prompt. "
+                    "Answer directly and concisely; do not ask for details unless "
+                    "they are essential.\nReference answer:\n"
+                    f"{reference_answer}"
+                )
 
             if session["details"].get("order_id") and not order:
                 model_message += (
@@ -208,8 +226,13 @@ class ChatService:
                     "simulated orders. No real payment or shipping actions are made."
                 )
 
+            if reference_answer is not None:
+                deterministic_response = None
+
             if deterministic_response is not None:
                 response = deterministic_response
+                if order is not None or product is not None:
+                    time.sleep(self.DEMO_DATA_RESPONSE_DELAY_SECONDS)
             elif self.assistant is not None:
                 response = self.assistant.generate_response(
                     message=model_message,

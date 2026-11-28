@@ -7,6 +7,11 @@ __pycache__
 .env.*
 models
 data
+!data/
+data/*
+!data/evaluation/
+data/evaluation/*
+!data/evaluation/support_gpt_eval.jsonl
 reports
 logs
 tests

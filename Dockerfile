@@ -26,6 +26,7 @@ RUN uv sync --frozen --extra ml --no-dev --no-install-project
 COPY --chown=supportgpt:supportgpt app ./app
 COPY --chown=supportgpt:supportgpt configs ./configs
 COPY --chown=supportgpt:supportgpt src ./src
+COPY --chown=supportgpt:supportgpt data/evaluation/support_gpt_eval.jsonl ./data/evaluation/support_gpt_eval.jsonl
 RUN uv sync --frozen --extra ml --no-dev --no-editable
 
 EXPOSE 8000
