@@ -34,17 +34,37 @@ https://huggingface.co/datasets/bitext/Bitext-customer-support-llm-chatbot-train
 
 The dataset contains customer questions, expected responses, categories and intents covering common customer support scenarios.
 
-## Planned workflow
+## Training method and configuration
 
-1. Download and inspect the dataset.
-2. Clean, format, deduplicate and split the data.
-3. Load Qwen2.5-0.5B-Instruct.
-4. Load the base model in BF16.
-5. Attach LoRA adapters and fine-tune using TRL.
-6. Evaluate the base model against the fine-tuned model.
-7. Build a FastAPI inference backend.
-8. Create a customer support chat interface.
-9. Deploy the application.
+The trained model is a LoRA adapter on top of the unchanged
+`Qwen/Qwen2.5-0.5B-Instruct` base model. Training examples come from the
+Bitext customer-support dataset after policy-aware cleaning, plus the
+training-only examples in `data/curated/support_supplemental.jsonl`. The
+preparation pipeline removes unsafe or unsupported targets, groups duplicate
+prompts to avoid split leakage, creates a category-stratified validation split,
+and uses deterministic square-root oversampling to reduce category imbalance.
+
+The adapter is trained with BF16 supervised fine-tuning using TRL's
+`SFTTrainer` and completion-only loss. The key settings are:
+
+| Setting | Value |
+|---|---:|
+| LoRA rank / alpha / dropout | 16 / 32 / 0.05 |
+| LoRA target modules | q/k/v/o projections; gate/up/down projections |
+| Epochs | 2 |
+| Learning rate | 0.0002 |
+| Per-device batch / gradient accumulation | 4 / 2 |
+| Effective batch size | 8 on one GPU |
+| Maximum sequence length | 768 tokens |
+| Warmup / weight decay | 3% / 0.01 |
+| Optimizer / scheduler | AdamW / cosine |
+| Precision / seed | BF16 / 42 |
+
+The best checkpoint is selected by validation loss and saved as an adapter;
+the base-model weights are not fine-tuned or merged. See
+[training_config.py](configs/training_config.py) and
+[train.py](src/support_gpt/training/train.py) for the full configuration and
+training implementation.
 
 ## Hardware
 
@@ -141,8 +161,59 @@ are reported separately; they test request validation, response validation,
 and session/order-ID retention, not model answer quality. ROUGE, BLEU, and
 exact match are not used as standalone measures of customer-support quality.
 The current fixed evaluation cases have already been inspected and should be
-treated as a development set; create a fresh, separate holdout before making
-final performance claims.
+treated as a development set. A separate 26-case holdout is available at
+`data/evaluation/support_gpt_holdout.jsonl`; it was authored after training and
+checked for normalized prompt overlap with training and the earlier evaluation
+set. Run it separately to preserve the distinction:
+
+```powershell
+uv run python -m support_gpt.evaluation.evaluate --dataset data/evaluation/support_gpt_holdout.jsonl --output-dir reports/fresh-holdout
+```
+
+### Recorded base-versus-adapter results
+
+The following results are from the checked-in evaluation reports. Both runs
+use greedy decoding; latency is hardware- and software-dependent. Error,
+empty-response, and placeholder-leakage rates were 0% for both models in both
+runs. “Unsupported-action claims” are pattern-based automated flags, not a
+complete semantic safety measure.
+
+| Dataset | Model | Cases | Safety checks passed | Unsupported-action claims | Mean latency | Mean loss | Mean perplexity |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Earlier evaluation (development) | Base | 18 | 94.4% | 5.6% | 2.593 s | 2.826 | 19.941 |
+| Earlier evaluation (development) | Fine-tuned adapter | 18 | 100% | 0% | 2.977 s | 2.468 | 19.430 |
+| Fresh holdout | Base | 26 | 96.2% | 3.8% | 2.799 s | n/a | n/a |
+| Fresh holdout | Fine-tuned adapter | 26 | 100% | 0% | 1.828 s | n/a | n/a |
+
+Loss and perplexity are unavailable for the fresh holdout report. The automated
+application contract checks are reported separately and use controlled fake
+model responses; they are not measures of language-model answer quality.
+
+An exploratory AI-assisted rubric review also rated relevance, correctness,
+helpfulness, and instruction-following from 1 (poor) to 5 (fully meets):
+
+| Dataset | Model | Relevance | Correctness | Helpfulness | Instruction following |
+|---|---|---:|---:|---:|---:|
+| Earlier evaluation (development) | Base | 3.611 | 2.333 | 2.667 | 2.444 |
+| Earlier evaluation (development) | Fine-tuned adapter | 3.167 | 2.278 | 2.278 | 2.278 |
+| Fresh holdout | Base | 3.615 | 2.038 | 2.269 | 2.115 |
+| Fresh holdout | Fine-tuned adapter | 3.462 | 3.115 | 2.808 | 3.308 |
+
+These rubric scores are exploratory assistant-generated reviews, **not human
+ratings or independent judge results**. The fresh holdout contains only two
+cases per category, so its scores are diagnostic rather than statistically
+conclusive. Reviewers found serious answer-quality and safety failures in both
+models that automated checks did not catch. The evidence is mixed: the adapter
+improved several fresh-holdout rubric dimensions and reduced automated
+unsupported-action flags, but it did not improve every dimension or pass every
+case. Do not treat these results as proof that the fine-tuned model is
+universally better.
+
+See the detailed
+[development evaluation report](reports/candidate-balanced/evaluation_report.md),
+[fresh-holdout report](reports/fresh-holdout/evaluation_report.md), and their
+separate [development review](reports/candidate-balanced/ai_assisted_review_summary.md)
+and [holdout review](reports/fresh-holdout/ai_assisted_review_summary.md).
 
 ## NovaMart demo application
 
