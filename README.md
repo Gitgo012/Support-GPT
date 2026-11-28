@@ -367,8 +367,108 @@ Hugging Face or be placed on `/data` separately. The production image installs
 the Linux CPU PyTorch wheel from the lockfile; it does not install CUDA
 libraries. The application rate-limits chat to 10 requests per IP per minute.
 
+## GitHub Actions CI/CD for EC2
+
+The workflow in `.github/workflows/ci-cd.yml` runs the full test suite on pull
+requests and pushes to `main`. A push to `main` deploys only after tests pass;
+you can also run it from **Actions → CI/CD → Run workflow** on `main`.
+
+Deployment uses a dedicated IAM user's access key from GitHub Actions Secrets
+and AWS Systems Manager (SSM). Access keys are long-lived credentials: grant
+only the permissions below, never use root credentials, and rotate the key
+regularly. The workflow:
+
+1. Checks the EC2 state. If stopped, it starts the instance and waits for EC2
+   status checks and SSM to come online.
+2. Uses SSM to fast-forward `/home/ubuntu/Support-GPT` to `origin/main`, rebuild
+   and restart the app container, then poll `/api/health` until the model is
+   loaded.
+3. Stops the instance if this workflow started it. If the instance was already
+   running, it leaves it running.
+
+The Elastic IP remains associated during stop/start, but the site is
+unavailable while the instance is stopped. EBS storage and the allocated public
+IPv4/Elastic IP may still incur charges while stopped; check the current AWS
+pricing and billing dashboard.
+
+### One-time AWS and GitHub setup
+
+1. Attach an EC2 instance profile with `AmazonSSMManagedInstanceCore`. Ensure
+   the SSM Agent is installed and the instance appears **Online** in Systems
+   Manager. The instance needs outbound access to AWS SSM endpoints and GitHub.
+2. Create a dedicated IAM user for GitHub Actions. Do not use your AWS root
+   account or a personal administrator access key. Attach the least-privilege
+   policy below to the user. Replace `REGION`,
+   `ACCOUNT_ID`, and `INSTANCE_ID`. `Describe` and SSM invocation-read actions
+   require `"Resource": "*"`, while start/stop and send-command are scoped to
+   the instance and the AWS-managed shell document:
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": ["ec2:DescribeInstances", "ec2:DescribeInstanceStatus"],
+         "Resource": "*"
+       },
+       {
+         "Effect": "Allow",
+         "Action": ["ec2:StartInstances", "ec2:StopInstances"],
+         "Resource": "arn:aws:ec2:REGION:ACCOUNT_ID:instance/INSTANCE_ID"
+       },
+       {
+         "Effect": "Allow",
+         "Action": "ssm:SendCommand",
+         "Resource": [
+           "arn:aws:ssm:REGION::document/AWS-RunShellScript",
+           "arn:aws:ec2:REGION:ACCOUNT_ID:instance/INSTANCE_ID"
+         ]
+       },
+       {
+         "Effect": "Allow",
+         "Action": ["ssm:DescribeInstanceInformation", "ssm:GetCommandInvocation"],
+         "Resource": "*"
+       }
+     ]
+   }
+   ```
+
+3. Create an access key for the dedicated IAM user. In **GitHub repository →
+   Settings → Secrets and variables → Actions**, add these **Secrets**:
+
+   | Secret | Value |
+   |---|---|
+   | `AWS_ACCESS_KEY_ID` | The IAM user's access key ID |
+   | `AWS_SECRET_ACCESS_KEY` | The IAM user's secret access key |
+
+   Store the secret key only in GitHub Secrets; do not put it in the workflow,
+   `.env`, or repository. Rotate it by adding a replacement key to GitHub
+   Secrets, verifying a deployment, then deactivating and deleting the old key.
+4. In the same settings page, add these **Variables**:
+
+   | Variable | Value |
+   |---|---|
+   | `AWS_REGION` | The EC2 instance's AWS region, such as `us-east-1` |
+   | `EC2_INSTANCE_ID` | The target instance ID, such as `i-0123456789abcdef0` |
+
+   Keep the existing `.env` file and model credentials on EC2; the workflow
+   does not copy them from GitHub.
+5. Confirm the repository is cloned at `/home/ubuntu/Support-GPT`, the
+   `ubuntu` user can pull `main`, Docker Compose works with `sudo`, and the
+   server's `.env` has `SUPPORTGPT_LOAD_MODEL=1` plus valid adapter settings.
+   The workflow intentionally fails deployment if `/api/health` does not report
+   `model_loaded: true`. Change the repository path in the workflow if your
+   clone is elsewhere.
+
+Pull requests run tests only and never start EC2. Pushes to `main` deploy
+automatically. Since the workflow stops an instance it started, the application
+will be offline after that deployment until you start EC2 for a demo.
+
 ### Files added or changed for EC2/Docker deployment
 
+- [.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml): CI tests and
+  IAM-key/SSM EC2 deployment.
 - [Dockerfile](Dockerfile): x86_64 Python 3.12 image, CPU PyTorch extra,
   non-root app user, and Uvicorn startup.
 - [docker-compose.yml](docker-compose.yml): persistent app data volume and
