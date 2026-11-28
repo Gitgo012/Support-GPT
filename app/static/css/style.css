@@ -209,6 +209,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .chat-message.user small { color: #d8e6d7; text-align: right; }
 .chat-message a { color: inherit; }
 .chat-message strong { font-weight: 700; }
+.chat-ticket-action { display: block; margin-top: 8px; padding: 0; font-size: 8px; text-align: left; }
 .quick-prompts { display: flex; flex-wrap: wrap; gap: 6px; padding: 9px 19px 11px; }
 .quick-prompts button { min-height: 29px; padding: 0 9px; border: 1px solid #e7e8df; border-radius: 20px; background: transparent; color: #667064; font-size: 8px; }
 .quick-prompts button:hover { border-color: #9bab8e; background: #f4f6ed; }

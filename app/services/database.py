@@ -77,6 +77,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS conversations (
                     id TEXT PRIMARY KEY,
                     customer_email TEXT REFERENCES customers(email),
+                    selected_order_id TEXT,
                     created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS messages (
@@ -97,6 +98,14 @@ class Database:
                 );
                 """
             )
+            conversation_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(conversations)")
+            }
+            if "selected_order_id" not in conversation_columns:
+                connection.execute(
+                    "ALTER TABLE conversations ADD COLUMN selected_order_id TEXT"
+                )
             for product in PRODUCTS:
                 connection.execute(
                     """INSERT OR IGNORE INTO products
@@ -276,7 +285,12 @@ class Database:
             return [dict(row) for row in rows]
 
     def save_exchange(
-        self, session_id: str, email: str, user_message: str, response: str
+        self,
+        session_id: str,
+        email: str,
+        user_message: str,
+        response: str,
+        order_id: str | None = None,
     ) -> None:
         normalized_email = email.strip().lower()
         now = self._now()
@@ -287,9 +301,16 @@ class Database:
             if existing and existing["customer_email"] != normalized_email:
                 raise PermissionError("Conversation does not belong to this customer.")
             connection.execute(
-                "INSERT OR IGNORE INTO conversations (id, customer_email, created_at) VALUES (?, ?, ?)",
-                (session_id, normalized_email, now),
+                """INSERT OR IGNORE INTO conversations
+                (id, customer_email, selected_order_id, created_at)
+                VALUES (?, ?, ?, ?)""",
+                (session_id, normalized_email, order_id, now),
             )
+            if order_id:
+                connection.execute(
+                    "UPDATE conversations SET selected_order_id = ? WHERE id = ?",
+                    (order_id, session_id),
+                )
             connection.executemany(
                 """INSERT INTO messages (conversation_id, role, content, created_at)
                 VALUES (?, ?, ?, ?)""",
@@ -298,6 +319,17 @@ class Database:
                     (session_id, "assistant", response, now),
                 ],
             )
+
+    def conversation_order_id(self, session_id: str, email: str) -> str | None:
+        with self.connection() as connection:
+            row = connection.execute(
+                """SELECT selected_order_id, customer_email FROM conversations
+                WHERE id = ?""",
+                (session_id,),
+            ).fetchone()
+            if not row or row["customer_email"] != email.strip().lower():
+                return None
+            return row["selected_order_id"]
 
     def conversation_belongs_to(self, session_id: str, email: str) -> bool:
         with self.connection() as connection:

@@ -381,14 +381,16 @@ async function loadConversationHistory() {
     try {
         const summaries = await api(`/customers/${encodeURIComponent(state.customer.email)}/conversations`);
         for (const summary of summaries) {
-            if (state.conversations.some(item => item.id === summary.id)) continue;
             const messages = await api(`/conversations/${encodeURIComponent(summary.id)}?email=${encodeURIComponent(state.customer.email)}`);
-            state.conversations.push({
+            const conversation = {
                 id: summary.id,
                 title: summary.preview?.slice(0, 38) || "Support conversation",
                 updated_at: summary.updated_at,
                 messages: messages.map(message => ({ role: message.role, content: message.content, created_at: message.created_at }))
-            });
+            };
+            const existing = state.conversations.find(item => item.id === summary.id);
+            if (existing) Object.assign(existing, conversation);
+            else state.conversations.push(conversation);
         }
         state.conversations.sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
         if (!activeConversation() && state.conversations.length) state.activeConversationId = state.conversations[0].id;
@@ -445,6 +447,21 @@ function renderChat() {
             const content = document.createElement("div");
             content.textContent = message.content;
             article.append(label, content);
+            if (message.role === "assistant" && message.ticketRecommended) {
+                const ticketButton = document.createElement("button");
+                ticketButton.type = "button";
+                ticketButton.className = "text-button chat-ticket-action";
+                ticketButton.textContent = "Create a demo support ticket";
+                ticketButton.addEventListener("click", () => {
+                    if (!state.customer) {
+                        navigate("account");
+                        showToast("Add your email to create a support ticket.");
+                        return;
+                    }
+                    prepareTicket(message.ticketSubject, message.ticketMessage);
+                });
+                article.appendChild(ticketButton);
+            }
             box.appendChild(article);
         });
     }
@@ -480,7 +497,14 @@ async function sendMessage(message) {
         }
         if (byId("supportProduct").value) payload.product_id = byId("supportProduct").value;
         const result = await api("/chat", { method: "POST", body: JSON.stringify(payload) });
-        conversation.messages.push({ role: "assistant", content: result.response, created_at: new Date().toISOString() });
+        conversation.messages.push({
+            role: "assistant",
+            content: result.response,
+            created_at: new Date().toISOString(),
+            ticketRecommended: result.escalation_available,
+            ticketSubject: text.length > 110 ? `${text.slice(0, 107)}...` : text,
+            ticketMessage: text
+        });
         conversation.updated_at = new Date().toISOString();
         persistConversations();
     } catch (error) {
@@ -491,6 +515,14 @@ async function sendMessage(message) {
         renderConversationList();
         renderChat();
     }
+}
+
+function prepareTicket(subject, message) {
+    byId("ticketSubject").value = subject || "Help with my NovaMart order";
+    byId("ticketMessage").value = message || "Please help me with this issue.";
+    byId("ticketPanel").open = true;
+    byId("ticketPanel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    byId("ticketSubject").focus({ preventScroll: true });
 }
 
 async function createTicket(event) {

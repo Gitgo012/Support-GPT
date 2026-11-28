@@ -79,7 +79,15 @@ class TestStoreDatabase(unittest.TestCase):
 
     def test_support_does_not_claim_to_process_a_cancellation(self):
         order = self.database.get_order("NM-20481", "alex.morgan@example.com")
-        response = ChatService().generate_response(
+        service = ChatService()
+        service.assistant = type(
+            "InaccurateAssistant",
+            (),
+            {
+                "generate_response": lambda self, message, conversation_history=None: "Your order has been cancelled."
+            },
+        )()
+        response = service.generate_response(
             "Please cancel my order.",
             "cancel-support-test",
             {"order": order},

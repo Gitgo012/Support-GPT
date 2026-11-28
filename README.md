@@ -170,7 +170,13 @@ uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 Open `http://127.0.0.1:8000`. Set `SUPPORTGPT_DATABASE_PATH` to choose another
 SQLite file. All product, customer, order, invoice, ticket, and customer-scoped
 conversation records are stored in that database. No real payment, refund,
-cancellation, shipping, or human-agent workflow is connected.
+cancellation, shipping, or live human-agent workflow is connected. Customer
+conversations and selected-order context persist in SQLite and are reloaded for
+follow-up messages. Tracking replies use ownership-checked order records;
+refunds and cancellations are guidance-only. The chat can create a demo ticket
+when a customer explicitly asks for a person, and it offers a ticket form for
+refund, cancellation, or order-issue requests. Tickets go only to a sample
+queue; no support staff are notified.
 
 ### What to commit to GitHub
 
